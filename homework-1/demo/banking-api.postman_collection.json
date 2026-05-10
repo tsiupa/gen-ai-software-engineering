@@ -1,0 +1,257 @@
+{
+  "info": {
+    "name": "Banking Transactions API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "transactionId",
+      "value": "replace-with-actual-id"
+    }
+  ],
+  "item": [
+    {
+      "name": "Task 1 - Core API",
+      "item": [
+        {
+          "name": "Create deposit",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/transactions",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toAccount\": \"ACC-12345\",\n  \"amount\": 5000.00,\n  \"currency\": \"USD\",\n  \"type\": \"deposit\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create transfer",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/transactions",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccount\": \"ACC-12345\",\n  \"toAccount\": \"ACC-67890\",\n  \"amount\": 750.50,\n  \"currency\": \"USD\",\n  \"type\": \"transfer\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create withdrawal",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/transactions",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccount\": \"ACC-12345\",\n  \"amount\": 100.00,\n  \"currency\": \"USD\",\n  \"type\": \"withdrawal\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List all transactions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/transactions"
+          }
+        },
+        {
+          "name": "Get transaction by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/transactions/{{transactionId}}"
+          }
+        },
+        {
+          "name": "Get transaction by ID - not found",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/transactions/does-not-exist"
+          }
+        },
+        {
+          "name": "Get account balance",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/accounts/ACC-12345/balance"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Task 2 - Validation",
+      "item": [
+        {
+          "name": "Error - negative amount",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/transactions",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccount\": \"ACC-12345\",\n  \"toAccount\": \"ACC-67890\",\n  \"amount\": -50.00,\n  \"currency\": \"USD\",\n  \"type\": \"transfer\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Error - too many decimal places",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/transactions",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccount\": \"ACC-12345\",\n  \"toAccount\": \"ACC-67890\",\n  \"amount\": 100.999,\n  \"currency\": \"USD\",\n  \"type\": \"transfer\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Error - invalid account format",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/transactions",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccount\": \"BADFORMAT\",\n  \"toAccount\": \"ACC-67890\",\n  \"amount\": 100.00,\n  \"currency\": \"USD\",\n  \"type\": \"transfer\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Error - invalid currency",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/transactions",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccount\": \"ACC-12345\",\n  \"toAccount\": \"ACC-67890\",\n  \"amount\": 100.00,\n  \"currency\": \"XYZ\",\n  \"type\": \"transfer\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Error - missing required fields",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/transactions",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccount\": \"ACC-12345\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Task 3 - Filtering",
+      "item": [
+        {
+          "name": "Filter by accountId",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/transactions?accountId=ACC-12345",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [{ "key": "accountId", "value": "ACC-12345" }]
+            }
+          }
+        },
+        {
+          "name": "Filter by type",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/transactions?type=transfer",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [{ "key": "type", "value": "transfer" }]
+            }
+          }
+        },
+        {
+          "name": "Filter by date range",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/transactions?from=2026-01-01&to=2026-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [
+                { "key": "from", "value": "2026-01-01" },
+                { "key": "to", "value": "2026-12-31" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter combined (accountId + type)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/transactions?accountId=ACC-12345&type=transfer",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [
+                { "key": "accountId", "value": "ACC-12345" },
+                { "key": "type", "value": "transfer" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter combined (accountId + type + date range)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/transactions?accountId=ACC-12345&type=transfer&from=2026-01-01&to=2026-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [
+                { "key": "accountId", "value": "ACC-12345" },
+                { "key": "type", "value": "transfer" },
+                { "key": "from", "value": "2026-01-01" },
+                { "key": "to", "value": "2026-12-31" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Task 4 - CSV Export",
+      "item": [
+        {
+          "name": "Export as CSV",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/transactions/export?format=csv",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "export"],
+              "query": [{ "key": "format", "value": "csv" }]
+            }
+          }
+        },
+        {
+          "name": "Export - unsupported format (expect 400)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/transactions/export?format=xml",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "export"],
+              "query": [{ "key": "format", "value": "xml" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
