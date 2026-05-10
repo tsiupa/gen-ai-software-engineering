@@ -1,4 +1,4 @@
-# Banking Transactions API
+# 🏦 Homework 1: Banking Transactions API
 
 > **Student Name**: Oleksandr Tsiupa
 > **Date Submitted**: 2026-05-10
