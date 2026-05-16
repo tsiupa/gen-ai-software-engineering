@@ -69,7 +69,24 @@ For deeper component descriptions, sequence diagrams, and design rationale see
 ## Prerequisites
 
 - JDK 17 or newer (project is built with Java 17 source level; JDK 21 works for runtime)
-- Maven 3.9+
+- Maven 3.9+ (no Maven wrapper is included — `mvn` must be on your `PATH`)
+
+---
+
+## IDE Setup
+
+**IntelliJ IDEA (recommended)**
+
+1. Open the `homework-2/` directory as a Maven project.
+2. Install the **Lombok** plugin: *Settings → Plugins → search "Lombok" → Install*.
+3. Enable annotation processing: *Settings → Build, Execution, Deployment → Compiler → Annotation Processors → Enable annotation processing*.
+4. Reload the Maven project (`pom.xml` → "Load Maven Changes") — generated getters/setters/builders will resolve correctly.
+
+> Without steps 2–3 the IDE will show red errors on every Lombok-annotated class even though `mvn compile` succeeds on the command line.
+
+**VS Code**
+
+Install the [Extension Pack for Java](https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-java-pack); Lombok support is bundled via `lombok-support`.
 
 ---
 
@@ -88,6 +105,19 @@ mvn spring-boot:run
 
 Once up, the service answers on `http://localhost:8080`. H2 console is available at
 `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:supportdb`, user `sa`, no password).
+
+> **Note:** The H2 console has no authentication — it is intentionally open for local development only. Do not deploy this configuration to a shared or public environment.
+
+**Useful development toggles** (override in `application.properties` or via `-D` JVM arg):
+
+```properties
+# See every SQL statement Spring executes
+spring.jpa.show-sql=true
+
+# Increase import file size limit beyond the default 10 MB
+spring.servlet.multipart.max-file-size=50MB
+spring.servlet.multipart.max-request-size=50MB
+```
 
 Quick smoke test:
 
@@ -133,9 +163,10 @@ homework-2/
 ├── API_REFERENCE.md
 ├── ARCHITECTURE.md
 ├── TESTING_GUIDE.md
-├── TASKS.md
+├── TASKS.md                   # homework task checklist (not a dev doc)
 ├── pom.xml
-├── lombok.config
+├── lombok.config              # sets addLombokGeneratedAnnotation=true so JaCoCo skips Lombok code
+├── demo/                      # scratch space for demo files / ad-hoc test payloads
 ├── docs/
 │   └── screenshots/
 └── src/
@@ -171,7 +202,8 @@ homework-2/
 | `README.md` (this file) | Developers | Quickstart, architecture overview, run instructions |
 | [`API_REFERENCE.md`](API_REFERENCE.md) | API consumers | Endpoints, schemas, errors, cURL examples |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Tech leads | Components, sequence diagrams, design decisions |
-| [`TESTING_GUIDE.md`](TESTING_GUIDE.md) | QA engineers | Pyramid, fixtures, manual checklist, perf benchmarks |
+| [`TESTING_GUIDE.md`](TESTING_GUIDE.md) | QA engineers | Pyramid, fixtures, manual checklist, coverage |
+| [`TASKS.md`](TASKS.md) | Course graders | Homework task checklist and completion notes |
 
 ---
 

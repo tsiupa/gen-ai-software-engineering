@@ -66,7 +66,55 @@ flowchart TB
 
 ---
 
-## 2. Sequence: Create with auto-classification
+## 2. Data Model
+
+### Entity diagram
+
+```mermaid
+erDiagram
+    TICKETS {
+        uuid        id                        PK
+        string      customer_id
+        string      customer_email
+        string      customer_name
+        string      subject                   "max 200 chars"
+        string      description               "max 2000 chars"
+        string      category                  "TicketCategory enum"
+        string      priority                  "TicketPriority enum"
+        string      status                    "TicketStatus enum"
+        timestamp   created_at
+        timestamp   updated_at
+        timestamp   resolved_at               "nullable"
+        string      assigned_to               "nullable"
+        double      classification_confidence "nullable; null = manually set"
+        string      source                    "nullable, TicketSource enum"
+        string      browser                   "nullable"
+        string      device_type               "nullable, DeviceType enum"
+    }
+    TICKET_TAGS {
+        uuid   ticket_id FK
+        string tag
+    }
+    TICKETS ||--o{ TICKET_TAGS : "has"
+```
+
+> `source`, `browser`, and `device_type` are stored as columns in the `tickets` table via `@Embedded TicketMetadata` — there is no separate metadata table.
+
+### Enum reference
+
+| Enum | Values (JSON wire / DB string) |
+|---|---|
+| `TicketCategory` | `account_access`, `technical_issue`, `billing_question`, `feature_request`, `bug_report`, `other` |
+| `TicketPriority` | `urgent`, `high`, `medium`, `low` |
+| `TicketStatus` | `new`, `in_progress`, `waiting_customer`, `resolved`, `closed` |
+| `TicketSource` | `web_form`, `email`, `api`, `chat`, `phone` |
+| `DeviceType` | `desktop`, `mobile`, `tablet` |
+
+All enums serialize to lowercase on the wire (`@JsonValue`) and deserialize case-insensitively (`@JsonCreator` + `toUpperCase`). Spring query-param binding is handled the same way via `EnumConvertersConfig`.
+
+---
+
+## 3. Sequence: Create with auto-classification
 
 ```mermaid
 sequenceDiagram
@@ -99,7 +147,7 @@ Failure paths:
 
 ---
 
-## 3. Sequence: Bulk import (CSV) with `auto_classify=true`
+## 4. Sequence: Bulk import (CSV) with `auto_classify=true`
 
 ```mermaid
 sequenceDiagram
@@ -147,13 +195,43 @@ The loop is per-record; one bad row does not abort the batch.
 
 ---
 
-## 4. Design Decisions and Trade-offs
+## 5. Design Decisions and Trade-offs
 
 ### Rule-based classifier instead of an LLM call
 
 - The Task 2 spec lists explicit keyword phrases for each category/priority. Implementing them literally is deterministic, testable, free, and zero-latency.
 - A pluggable interface (`classify(subject, description) → ClassificationResult`) keeps an LLM-backed implementation as a future drop-in without touching callers.
 - Confidence is a linear function of the matched-keyword count (`0.3 + 0.2 × signals`, capped at `1.0`), with a floor of `0.2` for no-match cases. The spec doesn't require a calibrated probability; this is enough for "more matches → higher confidence".
+
+**Algorithm details** (relevant when extending):
+
+*Category selection* — `CATEGORY_KEYWORDS` is a `LinkedHashMap<TicketCategory, List<String>>`. The classifier lowercases `subject + " " + description`, scans every category's keyword list for substring matches, and picks the category with the **most hits**. On tie the iteration order (insertion order of the map) wins. Default: `OTHER` (no map entry; returned when all counts are zero).
+
+*Priority selection* — `PRIORITY_KEYWORDS` maps `URGENT → HIGH → LOW`. The classifier returns the **first** entry that has any hit. Default: `MEDIUM` (no map entry; returned when nothing matches).
+
+*Confidence formula*:
+```
+signals = category_keyword_hits + priority_keyword_hits
+confidence = (signals == 0 && category == OTHER) ? 0.20
+           : min(1.0, 0.30 + 0.20 × signals)
+```
+Result is rounded to two decimal places.
+
+*Keyword map snapshot* (see `TicketClassifier` static initializer for the authoritative list):
+
+| Category | Sample trigger phrases |
+|---|---|
+| `account_access` | login, password, 2fa, locked out, cannot access |
+| `billing_question` | payment, invoice, refund, subscription, credit card |
+| `bug_report` | steps to reproduce, regression, stack trace |
+| `technical_issue` | bug, error, crash, exception, not working |
+| `feature_request` | feature request, enhancement, please add, would love |
+
+| Priority | Trigger phrases |
+|---|---|
+| `urgent` | cannot access, critical, production down, security |
+| `high` | important, blocking, asap |
+| `low` | minor, cosmetic, suggestion |
 
 ### Manual override clears `classification_confidence`
 
@@ -164,6 +242,23 @@ The loop is per-record; one bad row does not abort the batch.
 
 - Default is **off**: validation enforces `category` and `priority`. This keeps `POST /tickets` strict and unsurprising.
 - Auto-classify is opt-in via query param, so the same endpoint serves both supervised and unsupervised callers without a separate URL.
+
+### Import format detection
+
+`ImportFormat.detect(filename, contentType)` resolves the parser in two steps:
+
+1. **Filename extension** (highest priority): `.csv` → CSV, `.json` → JSON, `.xml` → XML.
+2. **Content-Type header** (fallback): substring match on `csv`, `json`, `xml`.
+
+If neither step resolves a format, `ImportFormatException` is thrown → `GlobalExceptionHandler` → HTTP `400 Invalid Import File`.
+
+Each parser enforces a specific document structure:
+
+| Format | Expected shape |
+|---|---|
+| CSV | UTF-8 file with a header row; column names match `TicketRequest` snake_case fields; `tags` column uses `;`-delimited values |
+| JSON | Root-level JSON array of objects (`[{…}, {…}]`) |
+| XML | `<tickets>` root element wrapping `<ticket>` child elements |
 
 ### Bulk import returns partial success
 
@@ -192,7 +287,7 @@ The loop is per-record; one bad row does not abort the batch.
 
 ---
 
-## 5. Cross-cutting Concerns
+## 6. Cross-cutting Concerns
 
 ### Validation
 
@@ -210,6 +305,17 @@ The loop is per-record; one bad row does not abort the batch.
 - Default Spring Boot console logging.
 - `TicketClassifier` emits one INFO line per decision with category, priority, confidence, matched keywords, and reasoning. This is the audit trail required by Task 2 ("Log all decisions").
 
+### Entity lifecycle
+
+`@PrePersist` (fires before first INSERT):
+- Generates a random UUID for `id` if `null`.
+- Sets `createdAt` and `updatedAt` to `Instant.now()`.
+- Defaults `status` to `NEW` if `null`.
+
+`@PreUpdate` (fires before every UPDATE):
+- Bumps `updatedAt` to `Instant.now()`.
+- Auto-sets `resolvedAt = updatedAt` when `status == RESOLVED && resolvedAt == null` (one-way latch — clearing `resolvedAt` manually requires an explicit set).
+
 ### Error model
 
 - One envelope (`ErrorResponse`) used by every `@ExceptionHandler`. Consumers parse one shape.
@@ -217,7 +323,7 @@ The loop is per-record; one bad row does not abort the batch.
 
 ---
 
-## 6. Performance Considerations
+## 7. Performance Considerations
 
 ### Today
 
@@ -232,7 +338,42 @@ The loop is per-record; one bad row does not abort the batch.
 
 ---
 
-## 7. Security Notes
+## 8. Extension Points
+
+### Adding a new ticket category
+
+1. Add a constant to `TicketCategory` (e.g., `SECURITY_CONCERN`).
+2. Add its keyword list to `CATEGORY_KEYWORDS` in `TicketClassifier` (order matters — categories earlier in the map win ties; `OTHER` is the implicit fallback and has no map entry).
+3. Add or update tests in `CategorizationTest` to cover the new keywords.
+
+### Adding a new priority level
+
+1. Add a constant to `TicketPriority`.
+2. Add its keyword list to `PRIORITY_KEYWORDS` in `TicketClassifier`. Place it in the correct position — priority uses **first-match** semantics, so insertion order defines precedence. `MEDIUM` is the implicit fallback (no map entry).
+3. Add tests in `CategorizationTest`.
+
+### Adding a new import format
+
+1. Add a constant to `ImportFormat`.
+2. Add detection logic in `ImportFormat.detect()` for both filename extension and content-type substring.
+3. Implement `TicketImportParser` — its single method `List<TicketRequest> parse(InputStream)` should throw `ImportFormatException` on structural errors.
+4. Annotate the new class with `@Component`.
+5. Inject it into `TicketImportService` via constructor and wire it in the `parserFor(format)` switch expression.
+6. Add fixture file(s) under `src/test/resources/fixtures/` and tests in `src/test/java/.../service/importer/`.
+
+### Swapping the classifier for an LLM
+
+Replace `TicketClassifier` with any bean that satisfies its call signature:
+
+```java
+ClassificationResult classify(String subject, String description)
+```
+
+No other class needs to change. `TicketService` injects `TicketClassifier` by type; a Spring `@Primary` override or profile-scoped bean is sufficient.
+
+---
+
+## 9. Security Notes
 
 The current build is **not production-secure** — it is a homework artifact. Items that would need work for real deployment:
 

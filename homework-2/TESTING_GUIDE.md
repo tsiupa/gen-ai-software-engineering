@@ -24,8 +24,10 @@ flowchart TB
 
 | Layer | Count | What runs | Speed |
 |---|---|---|---|
-| **Unit** | 46 | JUnit 5 + Mockito (and `@WebMvcTest` for the controller) | ~5–10 s total |
-| **Integration** | 10 | REST Assured against `@SpringBootTest(RANDOM_PORT)` with real H2 | ~25–30 s per IT class |
+| **Unit** | 46 | JUnit 5 + Mockito; controller slice uses `@WebMvcTest` + MockMvc (no network) | ~5–10 s total |
+| **Integration** | 10 | REST Assured against a real embedded server (`@SpringBootTest(RANDOM_PORT)`) with real H2 | ~25–30 s per IT class |
+
+> **MockMvc vs REST Assured** — `TicketApiTest` (`@WebMvcTest`) never starts an HTTP server; it exercises Spring MVC dispatch in-process with all downstream services mocked via `@MockBean`. The two IT classes (`TicketCrudIT`, `TicketAutoClassifyIT`) start a real embedded Tomcat on a random port and hit it over localhost with REST Assured — no mocking, real database.
 
 Total in-process tests: **56**. JaCoCo line coverage: **93%**, branch coverage: **76%**.
 
@@ -75,28 +77,159 @@ src/test/java/com/support/api/
 │   ├── classifier/
 │   │   └── CategorizationTest.java # 10 tests — every category + every priority
 │   └── importer/
-│       ├── CsvImportTest.java      # 6 tests
-│       ├── JsonImportTest.java     # 5 tests
-│       └── XmlImportTest.java      # 5 tests
+│       ├── CsvImportTest.java      # 6 tests  — inline string fixtures
+│       ├── JsonImportTest.java     # 5 tests  — inline string fixtures
+│       └── XmlImportTest.java      # 5 tests  — inline string fixtures
 └── integration/
     ├── TicketCrudIT.java           # 5 IT — Task 1 (CRUD + bulk import + filtering)
     └── TicketAutoClassifyIT.java   # 5 IT — Task 2 (auto-classify on create / import / endpoint)
 ```
 
+### What each test class covers
+
+**`TicketApiTest`** — HTTP layer only; all services are mocked.
+
+| Test method | Scenario |
+|---|---|
+| `postCreatesTicket` | `POST /tickets` → 201 with `id` in body |
+| `postRejectsInvalidEmail` | invalid email → 400 with `field_errors[].field == "customerEmail"` |
+| `postRejectsShortDescription` | short description → 400; also covers malformed JSON body → 400 |
+| `postAutoClassifyOmitsCategory` | `?auto_classify=true` with no category → 201 (category not required) |
+| `getListsTickets` | `GET /tickets` → 200, list body |
+| `getListsWithFilter` | query params bind to `TicketFilter`; invalid enum → 400 with `message` containing "priority" |
+| `getsById` | `GET /tickets/{id}` → 200 with `customer_id` |
+| `getsMissing404` | `GET /tickets/{id}` for unknown id → 404 |
+| `putUpdates` | `PUT /tickets/{id}` → 200 with `id` |
+| `deletesAndMissing` | `DELETE /tickets/{id}` → 204; delete again → 404 |
+| `autoClassifyAndImport` | `POST /{id}/auto-classify` → 200; import success → 201; missing `file` part → 400; unknown extension → 400 "Invalid Import File" |
+
+**`TicketModelTest`** — no Spring context; uses raw JPA lifecycle + Jakarta Validator.
+
+| Test method | Scenario |
+|---|---|
+| `builderPopulatesEntity` | Lombok builder sets fields; `tags` defaults to empty list |
+| `prePersistAssignsDefaults` | `@PrePersist` auto-generates UUID, `createdAt`, `updatedAt`, `status=NEW` |
+| `preUpdateSetsResolvedAt` | `@PreUpdate` bumps `updatedAt`; sets `resolvedAt` when `status==RESOLVED` |
+| `categoryFromJsonCaseInsensitive` | `@JsonCreator` accepts both `"BILLING_QUESTION"` and `"billing_question"` |
+| `priorityToJsonLowercase` | `@JsonValue` emits `"urgent"`, `"medium"` |
+| `statusFromJsonRejectsUnknown` | `"NOT_A_STATUS"` → `InvalidFormatException` |
+| `requestRejectsInvalidEmail` | `@Email` constraint fires on bad email |
+| `requestRejectsSubjectTooLong` | subject > 200 chars fails `@Size` |
+| `requestRejectsDescriptionTooShort` | description < 10 chars fails `@Size` |
+
+**`CategorizationTest`** — instantiates `TicketClassifier` directly; no Spring.
+
+| Test method | Scenario |
+|---|---|
+| `accountAccessFromLogin` | "Cannot login" / "password" → `account_access` |
+| `technicalIssueFromError` | "error" / "not working" → `technical_issue` |
+| `billingFromInvoice` | "invoice" / "refund" / "charge" → `billing_question` |
+| `featureRequestFromWouldLove` | "would love" / "feature" → `feature_request` |
+| `bugReportFromSteps` | "steps to reproduce" / "regression" → `bug_report` |
+| `urgentPriority` | "critical" + "security" → `urgent` |
+| `highPriority` | "important" / "blocking" / "asap" → `high` |
+| `lowPriority` | "minor" / "cosmetic" / "suggestion" → `low` |
+| `mediumDefault` | no priority keywords → `medium` |
+| `resultMetadata` | confidence in (0, 1], reasoning non-blank, keywords non-empty; full no-match → `other`/`medium`, reasoning contains "no category keywords matched" |
+
+> **Known gap**: there is no dedicated test for the `other` category triggered by a positive keyword match — the `other` fallback is only exercised via the no-match path in `resultMetadata`.
+
+**`CsvImportTest` / `JsonImportTest` / `XmlImportTest`** — instantiate parsers directly; use inline Java text-block strings, **not** the fixture files.
+
+| Class | Scenarios covered |
+|---|---|
+| `CsvImportTest` | valid header row; semicolon-delimited `tags`; metadata columns; missing optional fields tolerated; invalid enum → `ImportFormatException`; mismatched column count → `ImportFormatException` |
+| `JsonImportTest` | valid array; snake_case field mapping; nested `metadata`; unknown fields ignored; malformed JSON → `ImportFormatException` |
+| `XmlImportTest` | multiple `<ticket>` elements; nested `<tags>`; `<metadata>` block; empty `<tickets/>` → empty list; malformed XML → `ImportFormatException` |
+
+**`TicketCrudIT`** — full application context, real H2; `@BeforeEach` calls `repository.deleteAll()`.
+
+| Test method | Scenario |
+|---|---|
+| `crudLifecycle` | POST → GET → PUT (status=resolved, `resolved_at` populated) → DELETE → 404 |
+| `csvBulkImportSuccess` | `sample_tickets.csv` → 201, `successful:6, failed:0`; subsequent `GET /tickets` returns 6 items |
+| `jsonBulkImportPartial` | 2-record JSON: 1 valid + 1 invalid → 207, `errors[0].record_index=1` |
+| `xmlBulkImportAndMalformed` | `sample_tickets.xml` → 201, `successful:5`; then `malformed.xml` → 400 |
+| `listingWithFilters` | imports CSV; asserts `?priority=urgent` ≥ 2 hits; `?category=account_access&priority=urgent` → CSV-1 only; `?customer_id=CSV-4` → feature_request; `?status=new` → 6; `?priority=high` → CSV-2 |
+
+**`TicketAutoClassifyIT`** — full application context, real H2; `@BeforeEach` calls `repository.deleteAll()`.
+
+| Test method | Scenario |
+|---|---|
+| `fullLifecycleWithAutoClassify` | create with `?auto_classify=true`, no category/priority → 201 with `category=account_access`, `priority=urgent`, `classification_confidence > 0`; GET; DELETE |
+| `bulkImportWithAutoClassify` | JSON import `?auto_classify=true` → IT-A gets `billing_question`/`high`; IT-B gets `feature_request`/`low` |
+| `reclassifyExisting` | create manually; `POST /{id}/auto-classify` → `priority=urgent`, `keywords_found` contains "security"; subsequent GET reflects new priority |
+| `manualOverrideClearsConfidence` | auto-classify on create; PUT with different category → GET shows `classification_confidence` absent from JSON |
+| `validationWithoutAutoClassify` | POST without `auto_classify` and missing category → 400 with message containing "category"; DB stays empty |
+
 ### Fixtures
 
-`src/test/resources/fixtures/`:
+`src/test/resources/fixtures/` — used exclusively by **integration tests**. Parser unit tests use inline Java text-block strings instead.
 
 | File | Records | Used by |
 |---|---|---|
-| `sample_tickets.csv` | 6 valid rows covering every category | `TicketCrudIT.csvBulkImportSuccess` |
-| `sample_tickets.json` | 5 valid records | `TicketCrudIT`, auto-classify IT |
+| `sample_tickets.csv` | 6 valid rows, one per category | `TicketCrudIT.csvBulkImportSuccess`, `TicketCrudIT.listingWithFilters` |
+| `sample_tickets.json` | 5 valid records | `TicketCrudIT`, `TicketAutoClassifyIT.bulkImportWithAutoClassify` |
 | `sample_tickets.xml` | 5 valid records | `TicketCrudIT.xmlBulkImportAndMalformed` |
-| `malformed.csv` | (broken) | Negative test |
+| `malformed.csv` | (broken) | Negative test in `TicketCrudIT` |
 | `malformed.json` | (broken) | Negative test |
 | `malformed.xml` | (broken) | `TicketCrudIT.xmlBulkImportAndMalformed` |
 
-Inline fixtures (Java text blocks) are used inside unit tests where the data is small and tightly coupled to the assertion.
+**`sample_tickets.csv` row summary** (relevant because `listingWithFilters` asserts by `customer_id`):
+
+| Row | `customer_id` | `category` | `priority` |
+|---|---|---|---|
+| 1 | CSV-1 | `account_access` | `urgent` |
+| 2 | CSV-2 | `billing_question` | `high` |
+| 3 | CSV-3 | `bug_report` | `medium` |
+| 4 | CSV-4 | `feature_request` | `low` |
+| 5 | CSV-5 | `technical_issue` | `urgent` |
+| 6 | CSV-6 | `other` | `medium` |
+
+**What makes each malformed file broken:**
+
+| File | Defect |
+|---|---|
+| `malformed.csv` | Unbalanced double-quote in row 1, causing OpenCSV to read the rest as a continuation; column counts don't align with the header |
+| `malformed.json` | Object literal instead of array (`{ this is not valid json }`) — not valid JSON at all |
+| `malformed.xml` | Unclosed or mismatched tags — Jackson XmlMapper throws a parse error |
+
+---
+
+## Coverage Gaps
+
+Line coverage is 93%, branch coverage is 76%. Known areas not fully covered:
+
+| Area | Gap |
+|---|---|
+| `TicketClassifier` — category tie-breaking | No test exercises two categories with equal hit counts; the tie is resolved by `LinkedHashMap` insertion order |
+| `TicketClassifier` — `OTHER` explicit match | No test triggers `other` via a keyword; the fallback is only exercised via the no-match path |
+| `TicketImportService` — null record | The `if (req == null)` guard inside the import loop has no test; parsers never return `null` elements in practice |
+| `GlobalExceptionHandler` — generic 500 path | The catch-all `handleAny` handler is not exercised by any test |
+| `EnumConvertersConfig` — non-enum target type | The `ConverterFactory` only converts `Enum` subclasses; the guard branch for other types is not tested |
+
+---
+
+## How to Add Tests
+
+**Adding tests for a new category or priority keyword:**
+
+1. Add a `@Test` method in `CategorizationTest`.
+2. Call `classifier.classify(subject, description)` with text that triggers the new keyword.
+3. Assert `getCategory()` or `getPriority()`, and that `getKeywordsFound()` contains the expected keyword.
+
+**Adding tests for a new import format:**
+
+1. Create `<Format>ImportTest.java` in `src/test/java/.../service/importer/`.
+2. Instantiate the parser directly in `@BeforeEach` — no Spring context needed.
+3. Use inline text-block strings for fixtures; only promote to `src/test/resources/fixtures/` if the file is also needed by an IT class.
+4. Cover: valid parse, missing optional fields, metadata (if applicable), malformed input → `ImportFormatException`.
+
+**Adding a new integration test scenario:**
+
+1. Add a `@Test` method to the appropriate IT class (`TicketCrudIT` for CRUD/import, `TicketAutoClassifyIT` for classification flows).
+2. The `@BeforeEach` already calls `repository.deleteAll()` — each test starts with an empty database.
+3. Use REST Assured's fluent API (`given().when().then()`) as used in the existing tests.
 
 ---
 
