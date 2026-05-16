@@ -141,35 +141,38 @@ Full QA guide: [docs/TESTING_GUIDE.md](TESTING_GUIDE.md).
 
 ```
 homework-2/
+├── README.md
+├── API_REFERENCE.md
+├── ARCHITECTURE.md
+├── TESTING_GUIDE.md
+├── TASKS.md
 ├── pom.xml
 ├── lombok.config
-├── src/
-│   ├── main/
-│   │   ├── java/com/support/api/
-│   │   │   ├── SupportApiApplication.java
-│   │   │   ├── config/        # WebMvc converters
-│   │   │   ├── controller/    # REST controllers
-│   │   │   ├── dto/           # request/response/import DTOs
-│   │   │   ├── exception/     # @RestControllerAdvice + ErrorResponse
-│   │   │   ├── model/         # JPA entity, enums, embeddable
-│   │   │   ├── repository/    # Spring Data JPA + JpaSpecifications
-│   │   │   └── service/
-│   │   │       ├── classifier/  # TicketClassifier (rule-based)
-│   │   │       └── importer/    # Csv/Json/Xml parsers + dispatcher
-│   │   └── resources/
-│   │       └── application.properties
-│   └── test/
-│       ├── java/com/support/api/
-│       │   ├── controller/    # @WebMvcTest + Mockito
-│       │   ├── integration/   # REST Assured IT (Task 1 + Task 2)
-│       │   ├── model/         # entity + validation tests
-│       │   ├── perf/          # Gatling simulations (10)
-│       │   └── service/       # parser + classifier unit tests
-│       └── resources/fixtures/  # CSV/JSON/XML samples + malformed
-└── docs/
-    ├── API_REFERENCE.md
-    ├── ARCHITECTURE.md
-    └── TESTING_GUIDE.md
+├── docs/
+│   └── screenshots/
+└── src/
+    ├── main/
+    │   ├── java/com/support/api/
+    │   │   ├── SupportApiApplication.java
+    │   │   ├── config/        # WebMvc converters
+    │   │   ├── controller/    # REST controllers
+    │   │   ├── dto/           # request/response/import DTOs
+    │   │   ├── exception/     # @RestControllerAdvice + ErrorResponse
+    │   │   ├── model/         # JPA entity, enums, embeddable
+    │   │   ├── repository/    # Spring Data JPA + JpaSpecifications
+    │   │   └── service/
+    │   │       ├── classifier/  # TicketClassifier (rule-based)
+    │   │       └── importer/    # Csv/Json/Xml parsers + dispatcher
+    │   └── resources/
+    │       └── application.properties
+    └── test/
+        ├── java/com/support/api/
+        │   ├── controller/    # @WebMvcTest + Mockito
+        │   ├── integration/   # REST Assured IT (Task 1 + Task 2)
+        │   ├── model/         # entity + validation tests
+        │   ├── perf/          # Gatling simulations (10)
+        │   └── service/       # parser + classifier unit tests
+        └── resources/fixtures/  # CSV/JSON/XML samples + malformed
 ```
 
 ---
@@ -179,9 +182,9 @@ homework-2/
 | File | Audience | What's inside |
 |---|---|---|
 | `README.md` (this file) | Developers | Quickstart, architecture overview, run instructions |
-| [`docs/API_REFERENCE.md`](API_REFERENCE.md) | API consumers | Endpoints, schemas, errors, cURL examples |
-| [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) | Tech leads | Components, sequence diagrams, design decisions |
-| [`docs/TESTING_GUIDE.md`](TESTING_GUIDE.md) | QA engineers | Pyramid, fixtures, manual checklist, perf benchmarks |
+| [`API_REFERENCE.md`](API_REFERENCE.md) | API consumers | Endpoints, schemas, errors, cURL examples |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Tech leads | Components, sequence diagrams, design decisions |
+| [`TESTING_GUIDE.md`](TESTING_GUIDE.md) | QA engineers | Pyramid, fixtures, manual checklist, perf benchmarks |
 
 ---
 
