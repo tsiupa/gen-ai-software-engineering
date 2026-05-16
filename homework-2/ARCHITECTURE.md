@@ -222,7 +222,6 @@ The loop is per-record; one bad row does not abort the batch.
 ### Today
 
 - Single-process Spring Boot + in-memory H2: latency is bound by the JVM warm-up and JPA overhead.
-- Gatling baselines (see [TESTING_GUIDE.md](TESTING_GUIDE.md)) target p95 < 1.5s under modest load (5–50 RPS) on a developer laptop.
 - Tags are stored in a side table via `@ElementCollection` (`ticket_tags`) — fine for read patterns; could be denormalized to JSON if write throughput grows.
 
 ### Tomorrow (not implemented; sketched)

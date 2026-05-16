@@ -1,8 +1,7 @@
 # Testing Guide
 
 > Audience: QA engineers. Covers the test pyramid, how to run each layer,
-> where the fixtures live, a manual checklist for exploratory testing, and
-> the performance benchmark targets used by the Gatling simulations.
+> where the fixtures live, and a manual checklist for exploratory testing.
 
 ---
 
@@ -12,17 +11,13 @@
 flowchart TB
     subgraph Pyr["Test pyramid"]
         direction TB
-        Perf["Performance (Gatling)<br/>10 simulations - load only"]
         IT["Integration (REST Assured)<br/>10 tests - 2 IT classes"]
         Unit["Unit (JUnit 5 + Mockito)<br/>46 tests - 6 classes"]
     end
-    Perf --> IT
     IT --> Unit
 
-    classDef perfStyle fill:#ffe4c4,stroke:#cc7a00
     classDef itStyle fill:#cce5ff,stroke:#0050a0
     classDef unitStyle fill:#d4f0d4,stroke:#1a7d1a
-    class Perf perfStyle
     class IT itStyle
     class Unit unitStyle
 ```
@@ -31,7 +26,6 @@ flowchart TB
 |---|---|---|---|
 | **Unit** | 46 | JUnit 5 + Mockito (and `@WebMvcTest` for the controller) | ~5–10 s total |
 | **Integration** | 10 | REST Assured against `@SpringBootTest(RANDOM_PORT)` with real H2 | ~25–30 s per IT class |
-| **Performance** | 10 simulations | Gatling 3.10 Java DSL, separate run goal | 30 s each (configurable) |
 
 Total in-process tests: **56**. JaCoCo line coverage: **93%**, branch coverage: **76%**.
 
@@ -67,23 +61,6 @@ open target/site/jacoco/index.html
 
 The CSV/XML variants are at `target/site/jacoco/jacoco.csv` and `jacoco.xml`.
 
-### Performance (Gatling)
-
-Gatling needs a **running server** — it does not boot Spring Boot itself.
-
-```bash
-# terminal 1 — server
-java -jar target/support-api-1.0.0.jar
-# wait for "Started SupportApiApplication"
-
-# terminal 2 — one simulation at a time
-mvn gatling:test -Dgatling.simulationClass=com.support.api.perf.CrudThroughputSimulation
-```
-
-Results are written to `target/gatling/<sim>-<timestamp>/index.html`.
-
-If your server runs on a non-default URL, pass `-Dperf.baseUrl=http://other-host:9000`.
-
 ---
 
 ## Test layout
@@ -101,14 +78,9 @@ src/test/java/com/support/api/
 │       ├── CsvImportTest.java      # 6 tests
 │       ├── JsonImportTest.java     # 5 tests
 │       └── XmlImportTest.java      # 5 tests
-├── integration/
-│   ├── TicketCrudIT.java           # 5 IT — Task 1 (CRUD + bulk import + filtering)
-│   └── TicketAutoClassifyIT.java   # 5 IT — Task 2 (auto-classify on create / import / endpoint)
-└── perf/
-    ├── PerfConfig.java
-    ├── (5 Task 1 sims)             # CrudThroughput / Csv|Json|XmlBulkImport / FilteredList
-    └── (5 Task 2 sims)             # CreateWithAutoClassify / BulkImportAutoClassify /
-                                    # ReclassifyEndpoint / MixedReadWrite / ConcurrentClassify
+└── integration/
+    ├── TicketCrudIT.java           # 5 IT — Task 1 (CRUD + bulk import + filtering)
+    └── TicketAutoClassifyIT.java   # 5 IT — Task 2 (auto-classify on create / import / endpoint)
 ```
 
 ### Fixtures
@@ -117,9 +89,9 @@ src/test/java/com/support/api/
 
 | File | Records | Used by |
 |---|---|---|
-| `sample_tickets.csv` | 6 valid rows covering every category | `TicketCrudIT.csvBulkImportSuccess`, `FilteredListSimulation`, Gatling CSV upload sim |
-| `sample_tickets.json` | 5 valid records | `TicketCrudIT`, Gatling JSON sim, auto-classify sim |
-| `sample_tickets.xml` | 5 valid records | `TicketCrudIT.xmlBulkImportAndMalformed`, Gatling XML sim |
+| `sample_tickets.csv` | 6 valid rows covering every category | `TicketCrudIT.csvBulkImportSuccess` |
+| `sample_tickets.json` | 5 valid records | `TicketCrudIT`, auto-classify IT |
+| `sample_tickets.xml` | 5 valid records | `TicketCrudIT.xmlBulkImportAndMalformed` |
 | `malformed.csv` | (broken) | Negative test |
 | `malformed.json` | (broken) | Negative test |
 | `malformed.xml` | (broken) | `TicketCrudIT.xmlBulkImportAndMalformed` |
@@ -163,40 +135,12 @@ A 10-minute smoke run before submission or merging. Assume `http://localhost:808
 
 ---
 
-## Performance Benchmarks
-
-The Gatling assertions in each simulation set the **acceptance thresholds**. If
-any assertion fails the build will report it. All numbers below are 95th-percentile
-response times against a local laptop run (Java 21, 8 cores, in-memory H2). Treat
-them as ballparks; CI numbers will differ.
-
-| Simulation | Pattern | Target p95 latency | Failure rate | Local measured p95* |
-|---|---|---|---|---|
-| `CrudThroughputSimulation` | atOnce(5) + ramp 5→20 rps for 30 s | < 1 500 ms | < 1 % | ~ 300 ms |
-| `CsvBulkImportSimulation` | const 5 rps × 30 s, multipart CSV | < 2 000 ms | < 1 % | ~ 220 ms |
-| `JsonBulkImportSimulation` | const 5 rps × 30 s, multipart JSON | < 2 000 ms | < 1 % | ~ 180 ms |
-| `XmlBulkImportSimulation` | const 5 rps × 30 s, multipart XML | < 2 000 ms | < 1 % | ~ 230 ms |
-| `FilteredListSimulation` | const 20 rps × 30 s, 5 filter combinations | < 500 ms | < 1 % | ~ 80 ms |
-| `CreateWithAutoClassifySimulation` | ramp 10→50 rps × 30 s | < 1 000 ms | < 1 % | ~ 250 ms |
-| `BulkImportAutoClassifySimulation` | const 5 rps × 30 s | < 2 500 ms | < 1 % | ~ 280 ms |
-| `ReclassifyEndpointSimulation` | seed + ramp 5→25 rps × 30 s | < 1 000 ms | < 1 % | ~ 200 ms |
-| `MixedReadWriteSimulation` | const 30 rps × 30 s (mixed GET/POST) | < 800 ms | < 1 % | ~ 180 ms |
-| `ConcurrentClassifySimulation` | atOnceUsers(25) × repeat(5) | < 1 500 ms | < 1 % | ~ 350 ms |
-
-<sub>* Indicative numbers from a local dev run, not committed CI baselines.</sub>
-
-To tighten or loosen a threshold, edit the matching `Simulation` class — the
-`.assertions(...)` block at the bottom is the contract.
-
----
-
 ## Tips and Gotchas
 
-- **`mvn test` does not run Gatling.** Gatling is bound to its own plugin goal (`gatling:test`). This is intentional — perf runs need a live server and shouldn't gate CI on every push.
 - **REST Assured IT classes share H2 in-memory state with the running app, but each test method clears the repository in `@BeforeEach`.** If you ever see a test pass in isolation and fail in a batch, check whether you added an integration test without resetting state.
 - **`classification_confidence` is `null` after a manual category change.** Tests assert this via `body("classification_confidence", nullValue())` — Jackson omits `null` fields (`spring.jackson.default-property-inclusion=non_null`), so REST Assured's `nullValue()` matcher works on the missing-key case too.
 - **JaCoCo will report 41 % if `lombok.config` is missing or out-of-date.** The file flips on `@Generated` annotations so the coverage agent skips Lombok-emitted methods. A clean rebuild may be needed (`mvn clean test`) after editing it.
 
 ---
 
-<sub>This document was drafted with Claude Opus 4.7. Reach out to the team chat if a threshold above looks wrong on your hardware — they are tuned to a single laptop today.</sub>
+<sub>This document was drafted with Claude Opus 4.7.</sub>
