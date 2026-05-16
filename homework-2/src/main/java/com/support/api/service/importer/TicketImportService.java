@@ -39,7 +39,7 @@ public class TicketImportService {
         this.validator = validator;
     }
 
-    public ImportResult importTickets(InputStream input, ImportFormat format) {
+    public ImportResult importTickets(InputStream input, ImportFormat format, boolean autoClassify) {
         List<TicketRequest> requests;
         try {
             requests = parserFor(format).parse(input);
@@ -74,7 +74,7 @@ public class TicketImportService {
                 continue;
             }
             try {
-                Ticket saved = ticketService.create(req);
+                Ticket saved = ticketService.create(req, autoClassify);
                 createdIds.add(saved.getId());
             } catch (Exception e) {
                 errors.add(ImportError.builder()
@@ -93,8 +93,8 @@ public class TicketImportService {
                 .build();
     }
 
-    public ImportResult importTickets(InputStream input, String filename, String contentType) throws IOException {
-        return importTickets(input, ImportFormat.detect(filename, contentType));
+    public ImportResult importTickets(InputStream input, String filename, String contentType, boolean autoClassify) throws IOException {
+        return importTickets(input, ImportFormat.detect(filename, contentType), autoClassify);
     }
 
     private TicketImportParser parserFor(ImportFormat format) {

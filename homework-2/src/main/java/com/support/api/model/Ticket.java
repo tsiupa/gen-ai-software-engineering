@@ -71,6 +71,8 @@ public class Ticket {
 
     private String assignedTo;
 
+    private Double classificationConfidence;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "ticket_tags", joinColumns = @JoinColumn(name = "ticket_id"))
     @Column(name = "tag")

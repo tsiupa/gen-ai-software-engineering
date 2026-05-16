@@ -1,5 +1,6 @@
 package com.support.api.service;
 
+import com.support.api.dto.ClassificationResult;
 import com.support.api.dto.TicketFilter;
 import com.support.api.dto.TicketRequest;
 import com.support.api.exception.TicketNotFoundException;
@@ -7,6 +8,7 @@ import com.support.api.model.Ticket;
 import com.support.api.model.TicketStatus;
 import com.support.api.repository.TicketRepository;
 import com.support.api.repository.TicketSpecifications;
+import com.support.api.service.classifier.TicketClassifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,23 +21,34 @@ import java.util.UUID;
 public class TicketService {
 
     private final TicketRepository repository;
+    private final TicketClassifier classifier;
 
-    public TicketService(TicketRepository repository) {
+    public TicketService(TicketRepository repository, TicketClassifier classifier) {
         this.repository = repository;
+        this.classifier = classifier;
     }
 
     @Transactional
-    public Ticket create(TicketRequest request) {
+    public Ticket create(TicketRequest request, boolean autoClassify) {
+        ClassificationResult classification = null;
+        if (autoClassify) {
+            classification = classifier.classify(request.getSubject(), request.getDescription());
+        } else {
+            requireField("category", request.getCategory());
+            requireField("priority", request.getPriority());
+        }
+
         Ticket ticket = Ticket.builder()
                 .customerId(request.getCustomerId())
                 .customerEmail(request.getCustomerEmail())
                 .customerName(request.getCustomerName())
                 .subject(request.getSubject())
                 .description(request.getDescription())
-                .category(request.getCategory())
-                .priority(request.getPriority())
+                .category(classification != null ? classification.getCategory() : request.getCategory())
+                .priority(classification != null ? classification.getPriority() : request.getPriority())
                 .status(request.getStatus() != null ? request.getStatus() : TicketStatus.NEW)
                 .assignedTo(request.getAssignedTo())
+                .classificationConfidence(classification != null ? classification.getConfidence() : null)
                 .tags(request.getTags() != null ? new ArrayList<>(request.getTags()) : new ArrayList<>())
                 .metadata(request.getMetadata())
                 .build();
@@ -55,6 +68,12 @@ public class TicketService {
     @Transactional
     public Ticket update(UUID id, TicketRequest request) {
         Ticket ticket = repository.findById(id).orElseThrow(() -> new TicketNotFoundException(id));
+        requireField("category", request.getCategory());
+        requireField("priority", request.getPriority());
+
+        boolean categoryChanged = !request.getCategory().equals(ticket.getCategory());
+        boolean priorityChanged = !request.getPriority().equals(ticket.getPriority());
+
         ticket.setCustomerId(request.getCustomerId());
         ticket.setCustomerEmail(request.getCustomerEmail());
         ticket.setCustomerName(request.getCustomerName());
@@ -72,6 +91,10 @@ public class TicketService {
         ticket.setAssignedTo(request.getAssignedTo());
         ticket.setTags(request.getTags() != null ? new ArrayList<>(request.getTags()) : new ArrayList<>());
         ticket.setMetadata(request.getMetadata());
+
+        if (categoryChanged || priorityChanged) {
+            ticket.setClassificationConfidence(null);
+        }
         return repository.save(ticket);
     }
 
@@ -81,5 +104,22 @@ public class TicketService {
             throw new TicketNotFoundException(id);
         }
         repository.deleteById(id);
+    }
+
+    @Transactional
+    public ClassificationResult autoClassify(UUID id) {
+        Ticket ticket = repository.findById(id).orElseThrow(() -> new TicketNotFoundException(id));
+        ClassificationResult result = classifier.classify(ticket.getSubject(), ticket.getDescription());
+        ticket.setCategory(result.getCategory());
+        ticket.setPriority(result.getPriority());
+        ticket.setClassificationConfidence(result.getConfidence());
+        repository.save(ticket);
+        return result;
+    }
+
+    private static void requireField(String name, Object value) {
+        if (value == null) {
+            throw new IllegalArgumentException(name + " is required (omit only when auto_classify=true)");
+        }
     }
 }

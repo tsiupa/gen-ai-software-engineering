@@ -1,5 +1,6 @@
 package com.support.api.controller;
 
+import com.support.api.dto.ClassificationResult;
 import com.support.api.dto.ImportResult;
 import com.support.api.dto.TicketFilter;
 import com.support.api.dto.TicketRequest;
@@ -44,8 +45,9 @@ public class TicketController {
     }
 
     @PostMapping
-    public ResponseEntity<TicketResponse> create(@Valid @RequestBody TicketRequest request) {
-        Ticket created = ticketService.create(request);
+    public ResponseEntity<TicketResponse> create(@Valid @RequestBody TicketRequest request,
+                                                 @RequestParam(name = "auto_classify", defaultValue = "false") boolean autoClassify) {
+        Ticket created = ticketService.create(request, autoClassify);
         return ResponseEntity.status(HttpStatus.CREATED).body(TicketResponse.from(created));
     }
 
@@ -83,14 +85,20 @@ public class TicketController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/auto-classify")
+    public ClassificationResult autoClassify(@PathVariable UUID id) {
+        return ticketService.autoClassify(id);
+    }
+
     @PostMapping("/import")
     public ResponseEntity<ImportResult> bulkImport(@RequestPart("file") MultipartFile file,
-                                                   @RequestParam(name = "format", required = false) String formatHint)
+                                                   @RequestParam(name = "format", required = false) String formatHint,
+                                                   @RequestParam(name = "auto_classify", defaultValue = "false") boolean autoClassify)
             throws IOException {
         ImportFormat format = formatHint != null
                 ? ImportFormat.valueOf(formatHint.trim().toUpperCase())
                 : ImportFormat.detect(file.getOriginalFilename(), file.getContentType());
-        ImportResult result = importService.importTickets(file.getInputStream(), format);
+        ImportResult result = importService.importTickets(file.getInputStream(), format, autoClassify);
         HttpStatus status = result.getFailed() == 0 ? HttpStatus.CREATED : HttpStatus.MULTI_STATUS;
         return ResponseEntity.status(status).body(result);
     }

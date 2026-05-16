@@ -7,7 +7,6 @@ import com.support.api.model.TicketStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -40,10 +39,8 @@ public class TicketRequest {
     @Size(min = 10, max = 2000, message = "description must be 10-2000 characters")
     private String description;
 
-    @NotNull(message = "category is required")
     private TicketCategory category;
 
-    @NotNull(message = "priority is required")
     private TicketPriority priority;
 
     private TicketStatus status;

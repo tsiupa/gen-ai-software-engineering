@@ -32,6 +32,7 @@ public class TicketResponse {
     private Instant updatedAt;
     private Instant resolvedAt;
     private String assignedTo;
+    private Double classificationConfidence;
     private List<String> tags;
     private TicketMetadata metadata;
 
@@ -50,6 +51,7 @@ public class TicketResponse {
                 .updatedAt(t.getUpdatedAt())
                 .resolvedAt(t.getResolvedAt())
                 .assignedTo(t.getAssignedTo())
+                .classificationConfidence(t.getClassificationConfidence())
                 .tags(t.getTags())
                 .metadata(t.getMetadata())
                 .build();
