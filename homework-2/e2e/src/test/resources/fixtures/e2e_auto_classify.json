@@ -1,0 +1,23 @@
+[
+  {
+    "customer_id":    "E2E-JSON-A",
+    "customer_email": "json-a@e2e.com",
+    "customer_name":  "Json A",
+    "subject":        "Cannot sign in",
+    "description":    "I am locked out of my account. 2FA codes are not arriving and I cannot access the platform. Critical issue."
+  },
+  {
+    "customer_id":    "E2E-JSON-B",
+    "customer_email": "json-b@e2e.com",
+    "customer_name":  "Json B",
+    "subject":        "Subscription payment failed",
+    "description":    "My subscription payment failed but I was still charged. Please refund to my credit card. This is important."
+  },
+  {
+    "customer_id":    "E2E-JSON-C",
+    "customer_email": "json-c@e2e.com",
+    "customer_name":  "Json C",
+    "subject":        "Feature enhancement",
+    "description":    "Would love to see an export enhancement added. Just a minor cosmetic suggestion for power users."
+  }
+]
