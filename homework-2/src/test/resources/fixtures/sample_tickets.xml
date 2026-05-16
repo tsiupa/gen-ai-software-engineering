@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tickets>
+  <ticket>
+    <customer_id>XML-1</customer_id>
+    <customer_email>liam@example.com</customer_email>
+    <customer_name>Liam</customer_name>
+    <subject>Cannot reset password</subject>
+    <description>I clicked forgot password but the reset email never arrived. Cant access my account.</description>
+    <category>account_access</category>
+    <priority>urgent</priority>
+    <tags>
+      <tag>login</tag>
+      <tag>password</tag>
+    </tags>
+    <metadata>
+      <source>web_form</source>
+      <browser>Safari</browser>
+      <device_type>tablet</device_type>
+    </metadata>
+  </ticket>
+  <ticket>
+    <customer_id>XML-2</customer_id>
+    <customer_email>mia@example.com</customer_email>
+    <customer_name>Mia</customer_name>
+    <subject>Refund request</subject>
+    <description>Please refund my last invoice as the payment was charged twice. This is important.</description>
+    <category>billing_question</category>
+    <priority>high</priority>
+  </ticket>
+  <ticket>
+    <customer_id>XML-3</customer_id>
+    <customer_email>noah@example.com</customer_email>
+    <customer_name>Noah</customer_name>
+    <subject>Add dark mode</subject>
+    <description>Would love a dark mode feature - minor cosmetic improvement suggestion.</description>
+    <category>feature_request</category>
+    <priority>low</priority>
+  </ticket>
+  <ticket>
+    <customer_id>XML-4</customer_id>
+    <customer_email>olivia@example.com</customer_email>
+    <customer_name>Olivia</customer_name>
+    <subject>Bug report</subject>
+    <description>Steps to reproduce: open app, tap settings. Defect: app crashes immediately, regression.</description>
+    <category>bug_report</category>
+    <priority>medium</priority>
+  </ticket>
+  <ticket>
+    <customer_id>XML-5</customer_id>
+    <customer_email>peter@example.com</customer_email>
+    <customer_name>Peter</customer_name>
+    <subject>Data export</subject>
+    <description>How can I export my data to a CSV file? Looking for a one-click export.</description>
+    <category>other</category>
+    <priority>medium</priority>
+  </ticket>
+</tickets>

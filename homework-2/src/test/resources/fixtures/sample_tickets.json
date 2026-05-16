@@ -1,0 +1,50 @@
+[
+  {
+    "customer_id": "JSON-1",
+    "customer_email": "grace@example.com",
+    "customer_name": "Grace",
+    "subject": "Cannot log in",
+    "description": "I cant access my account because 2FA codes are not being sent. This is critical.",
+    "category": "account_access",
+    "priority": "urgent",
+    "tags": ["login", "2fa"],
+    "metadata": {"source": "web_form", "browser": "Chrome", "device_type": "desktop"}
+  },
+  {
+    "customer_id": "JSON-2",
+    "customer_email": "henry@example.com",
+    "customer_name": "Henry",
+    "subject": "Invoice question",
+    "description": "Why was I charged twice on my last invoice? Please refund the duplicate.",
+    "category": "billing_question",
+    "priority": "high",
+    "tags": ["billing"]
+  },
+  {
+    "customer_id": "JSON-3",
+    "customer_email": "ivy@example.com",
+    "customer_name": "Ivy",
+    "subject": "Feature request",
+    "description": "Would love a dark mode option for the dashboard. Cosmetic suggestion only.",
+    "category": "feature_request",
+    "priority": "low"
+  },
+  {
+    "customer_id": "JSON-4",
+    "customer_email": "jack@example.com",
+    "customer_name": "Jack",
+    "subject": "Bug in checkout",
+    "description": "Steps to reproduce: add item to cart, click checkout. Result: total is wrong, regression from last release.",
+    "category": "bug_report",
+    "priority": "medium"
+  },
+  {
+    "customer_id": "JSON-5",
+    "customer_email": "kate@example.com",
+    "customer_name": "Kate",
+    "subject": "Export option",
+    "description": "Where can I find the data export option? I just need to download my history.",
+    "category": "other",
+    "priority": "medium"
+  }
+]
