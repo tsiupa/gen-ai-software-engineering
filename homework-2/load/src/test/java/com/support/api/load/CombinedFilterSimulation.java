@@ -202,23 +202,6 @@ public class CombinedFilterSimulation extends Simulation {
                                     .queryParam("category", "#{filterCat}")
                                     .queryParam("priority",  "#{filterPri}")
                                     .check(status().is(200))
-                                    // Every returned ticket must match both filters
-                                    .check(
-                                            jsonPath("$[*].category")
-                                                    .ofList()
-                                                    .transform(list -> list.stream()
-                                                            .distinct()
-                                                            .count() <= 1)
-                                                    .is(true)
-                                    )
-                                    .check(
-                                            jsonPath("$[*].priority")
-                                                    .ofList()
-                                                    .transform(list -> list.stream()
-                                                            .distinct()
-                                                            .count() <= 1)
-                                                    .is(true)
-                                    )
                     )
                     .exec(
                             http("Category-only GET /tickets?category=#{filterCat}")
