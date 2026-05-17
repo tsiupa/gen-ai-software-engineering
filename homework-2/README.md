@@ -1,3 +1,9 @@
+🎧 Homework 2: Intelligent Customer Support System
+
+> **Student Name**: Oleksandr Tsiupa
+> **Date Submitted**: 2026-05-17
+> **AI Tools Used**: Claude Code
+
 # Intelligent Customer Support Ticket Management API
 
 A Spring Boot REST service that ingests support tickets from multiple file formats
