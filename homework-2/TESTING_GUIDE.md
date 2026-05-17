@@ -11,13 +11,17 @@
 flowchart TB
     subgraph Pyr["Test pyramid"]
         direction TB
+        E2E["E2E (Groovy + Spock)<br/>12 scenarios - 2 spec files"]
         IT["Integration (REST Assured)<br/>10 tests - 2 IT classes"]
         Unit["Unit (JUnit 5 + Mockito)<br/>46 tests - 6 classes"]
     end
+    E2E --> IT
     IT --> Unit
 
+    classDef e2eStyle fill:#ffe5cc,stroke:#a05000
     classDef itStyle fill:#cce5ff,stroke:#0050a0
     classDef unitStyle fill:#d4f0d4,stroke:#1a7d1a
+    class E2E e2eStyle
     class IT itStyle
     class Unit unitStyle
 ```
@@ -26,10 +30,11 @@ flowchart TB
 |---|---|---|---|
 | **Unit** | 46 | JUnit 5 + Mockito; controller slice uses `@WebMvcTest` + MockMvc (no network) | ~5–10 s total |
 | **Integration** | 10 | REST Assured against a real embedded server (`@SpringBootTest(RANDOM_PORT)`) with real H2 | ~25–30 s per IT class |
+| **E2E** | 12 | Groovy/Spock + REST Assured against an externally-running app; no Spring context, no database reset | ~10–20 s (network-bound) |
 
 > **MockMvc vs REST Assured** — `TicketApiTest` (`@WebMvcTest`) never starts an HTTP server; it exercises Spring MVC dispatch in-process with all downstream services mocked via `@MockBean`. The two IT classes (`TicketCrudIT`, `TicketAutoClassifyIT`) start a real embedded Tomcat on a random port and hit it over localhost with REST Assured — no mocking, real database.
 
-Total in-process tests: **56**. JaCoCo line coverage: **93%**, branch coverage: **76%**.
+Total in-process tests: **56**. E2E scenarios (separate module): **12**. JaCoCo line coverage: **93%**, branch coverage: **76%**.
 
 ---
 
@@ -43,6 +48,25 @@ mvn test
 ```
 
 Surefire is configured to pick up both `*Test.java` (unit) and `*IT.java` (integration).
+
+### E2E tests
+
+The `e2e/` directory is a standalone Maven project — it must be run separately and requires the
+application to be listening at `http://localhost:8080` (or an override URL).
+
+```bash
+# Start the application first (in a separate terminal)
+cd homework-2 && mvn -DskipTests spring-boot:run
+
+# Run all E2E scenarios
+cd homework-2/e2e && mvn test
+
+# Run against a remote host
+cd homework-2/e2e && mvn test -Dapi.base-url=http://staging.example.com
+
+# Run a single spec
+cd homework-2/e2e && mvn -Dtest='TicketLifecycleSpec' test
+```
 
 ### A specific test class
 
@@ -83,6 +107,11 @@ src/test/java/com/support/api/
 └── integration/
     ├── TicketCrudIT.java           # 5 IT — Task 1 (CRUD + bulk import + filtering)
     └── TicketAutoClassifyIT.java   # 5 IT — Task 2 (auto-classify on create / import / endpoint)
+
+e2e/src/test/groovy/com/support/api/e2e/
+├── BaseE2ESpec.groovy                  # abstract base — REST Assured setup + per-test cleanup
+├── TicketLifecycleSpec.groovy          # 5 scenarios — lifecycle, re-classify, filters, validation
+└── BulkImportAutoClassifySpec.groovy   # 7 scenarios — all import formats + partial-success + malformed
 ```
 
 ### What each test class covers
@@ -161,6 +190,52 @@ src/test/java/com/support/api/
 | `reclassifyExisting` | create manually; `POST /{id}/auto-classify` → `priority=urgent`, `keywords_found` contains "security"; subsequent GET reflects new priority |
 | `manualOverrideClearsConfidence` | auto-classify on create; PUT with different category → GET shows `classification_confidence` absent from JSON |
 | `validationWithoutAutoClassify` | POST without `auto_classify` and missing category → 400 with message containing "category"; DB stays empty |
+
+---
+
+## E2E Tests (`e2e/` module)
+
+The `e2e/` directory is a separate Maven project (`support-api-e2e`) written in **Groovy + Spock
+Framework** with REST Assured for HTTP assertions. Unlike the integration tests, E2E specs:
+
+- **Require the application to be running** — no `@SpringBootTest`, no embedded server.
+- **Clean up via DELETE** — `BaseE2ESpec.cleanup()` deletes every ticket created during the test
+  by tracking IDs in a list; no `repository.deleteAll()` call.
+- **Can target any host** — override `api.base-url` to point at staging or any remote environment.
+
+### `TicketLifecycleSpec` (5 scenarios)
+
+| Scenario | What is verified |
+|---|---|
+| Complete status-machine walk | `new → in_progress → waiting_customer → resolved → DELETE → 404`; `resolved_at` populated only on resolution |
+| Auto-classify on create, manual override | `?auto_classify=true` assigns `account_access`/`urgent`; subsequent PUT with different category clears `classification_confidence` |
+| Re-classify endpoint | `POST /{id}/auto-classify` on a ticket with wrong manual category → updated `technical_issue`/`urgent`, `keywords_found` contains "security"/"critical" |
+| Listing filters | Creates 3 tickets with distinct category/priority; asserts `customer_id`, `category`, `priority`, and combined filters return the correct subset; invalid enum → 400 |
+| Validation + 404 responses | Invalid email → 400 with `field_errors`; short description → 400; missing category without auto_classify → 400; non-existent UUID → 404 for GET, PUT, DELETE, and re-classify |
+
+### `BulkImportAutoClassifySpec` (7 scenarios)
+
+| Scenario | What is verified |
+|---|---|
+| JSON import with `auto_classify` | 3-record fixture (`e2e_auto_classify.json`) → `account_access`/urgent, `billing_question`/high, `feature_request`/low, all with positive confidence |
+| CSV import with `auto_classify` | 5-record fixture (`e2e_auto_classify.csv`) → correct category + priority for all five records including `bug_report`/medium and `technical_issue`/urgent |
+| XML import with `auto_classify` | 3-record fixture (`e2e_auto_classify.xml`) → `account_access`/urgent, `billing_question`/high, `feature_request`/low |
+| Partial success (207) | 2-record payload (1 valid + 1 bad email) → 207, `successful:1, failed:1`, `errors[0].record_index=1`; valid record persisted as `account_access` |
+| Malformed files (data-driven) | `bad.csv`, `bad.json`, `bad.xml` each → 400 with `error: "Invalid Import File"` |
+| Missing file part | POST with no `file` part → 400 with message containing "file" |
+| Import without `auto_classify` when category omitted | 2 records without category → 207, `successful:0, failed:2`, both error messages contain "category" |
+
+### E2E fixtures
+
+`e2e/src/test/resources/fixtures/` — used only by `BulkImportAutoClassifySpec` for format-specific
+import scenarios. Parser unit tests and integration tests use their own fixture files under
+`src/test/resources/fixtures/`.
+
+| File | Records | Classifier signal |
+|---|---|---|
+| `e2e_auto_classify.json` | 3 | E2E-JSON-A (account_access/urgent), E2E-JSON-B (billing_question/high), E2E-JSON-C (feature_request/low) |
+| `e2e_auto_classify.csv` | 5 | E2E-CSV-A through E2E-CSV-E — one per category, all without explicit category/priority columns |
+| `e2e_auto_classify.xml` | 3 | E2E-XML-A (account_access/urgent), E2E-XML-B (billing_question/high), E2E-XML-C (feature_request/low) |
 
 ### Fixtures
 

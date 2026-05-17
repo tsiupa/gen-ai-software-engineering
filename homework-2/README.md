@@ -15,7 +15,7 @@ Homework 2 of the **AI-Assisted Development** course.
 - **Auto-classification** of category (`account_access`, `technical_issue`, `billing_question`, `feature_request`, `bug_report`, `other`) and priority (`urgent`, `high`, `medium`, `low`) — keyword-based, returns confidence + reasoning + matched keywords.
 - **Snake_case JSON** payloads end-to-end (request and response).
 - **In-memory H2** with the H2 console at `/h2-console`.
-- **Test suite**: 56 unit + integration tests (JUnit 5, Mockito, REST Assured) at **93% line coverage** (JaCoCo).
+- **Test suite**: 56 unit + integration tests (JUnit 5, Mockito, REST Assured) at **93% line coverage** (JaCoCo); plus a separate **E2E module** (`e2e/`) with 12 Groovy/Spock black-box scenarios that target a live running instance.
 
 ---
 
@@ -153,6 +153,23 @@ mvn test && open target/site/jacoco/index.html
 
 Full QA guide: [docs/TESTING_GUIDE.md](TESTING_GUIDE.md).
 
+### E2E tests (requires a running instance)
+
+The `e2e/` directory is a standalone Maven project (Groovy + Spock + REST Assured) that runs
+black-box scenarios against an already-running application. Tests clean up after themselves
+by deleting the tickets they created — no database reset is needed.
+
+```bash
+# 1. Start the application first (in a separate terminal)
+mvn -DskipTests spring-boot:run
+
+# 2. Run all E2E scenarios against localhost:8080 (default)
+cd e2e && mvn test
+
+# Run against a different host
+cd e2e && mvn test -Dapi.base-url=http://staging.example.com
+```
+
 ---
 
 ## Project Structure
@@ -167,6 +184,7 @@ homework-2/
 ├── pom.xml
 ├── lombok.config              # sets addLombokGeneratedAnnotation=true so JaCoCo skips Lombok code
 ├── demo/                      # scratch space for demo files / ad-hoc test payloads
+├── e2e/                       # standalone Groovy/Spock E2E module (separate Maven project)
 ├── docs/
 │   └── screenshots/
 └── src/
