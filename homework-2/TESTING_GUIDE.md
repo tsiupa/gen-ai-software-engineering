@@ -11,16 +11,20 @@
 flowchart TB
     subgraph Pyr["Test pyramid"]
         direction TB
+        Load["Load (Gatling)<br/>2 simulations - 35 concurrent users"]
         E2E["E2E (Groovy + Spock)<br/>12 scenarios - 2 spec files"]
         IT["Integration (REST Assured)<br/>10 tests - 2 IT classes"]
         Unit["Unit (JUnit 5 + Mockito)<br/>46 tests - 6 classes"]
     end
+    Load --> E2E
     E2E --> IT
     IT --> Unit
 
+    classDef loadStyle fill:#f0e0ff,stroke:#6000a0
     classDef e2eStyle fill:#ffe5cc,stroke:#a05000
     classDef itStyle fill:#cce5ff,stroke:#0050a0
     classDef unitStyle fill:#d4f0d4,stroke:#1a7d1a
+    class Load loadStyle
     class E2E e2eStyle
     class IT itStyle
     class Unit unitStyle
@@ -31,6 +35,7 @@ flowchart TB
 | **Unit** | 46 | JUnit 5 + Mockito; controller slice uses `@WebMvcTest` + MockMvc (no network) | ~5–10 s total |
 | **Integration** | 10 | REST Assured against a real embedded server (`@SpringBootTest(RANDOM_PORT)`) with real H2 | ~25–30 s per IT class |
 | **E2E** | 12 | Groovy/Spock + REST Assured against an externally-running app; no Spring context, no database reset | ~10–20 s (network-bound) |
+| **Load** | 2 simulations | Gatling Java DSL against an externally-running app; measures throughput and latency under concurrent load | ~30–60 s per simulation |
 
 > **MockMvc vs REST Assured** — `TicketApiTest` (`@WebMvcTest`) never starts an HTTP server; it exercises Spring MVC dispatch in-process with all downstream services mocked via `@MockBean`. The two IT classes (`TicketCrudIT`, `TicketAutoClassifyIT`) start a real embedded Tomcat on a random port and hit it over localhost with REST Assured — no mocking, real database.
 
@@ -67,6 +72,35 @@ cd homework-2/e2e && mvn test -Dapi.base-url=http://staging.example.com
 # Run a single spec
 cd homework-2/e2e && mvn -Dtest='TicketLifecycleSpec' test
 ```
+
+### Load tests
+
+The `load/` directory is a standalone Maven project (Gatling 3.9 · Java DSL). It requires the
+application to be listening at `http://localhost:8080` (or an override URL). No database reset
+is performed between runs; the seed tickets created by `CombinedFilterSimulation` accumulate
+across runs unless the application is restarted.
+
+```bash
+# Start the application first (in a separate terminal)
+cd homework-2 && mvn -DskipTests spring-boot:run
+
+# Run both simulations sequentially
+cd homework-2/load && mvn gatling:test
+
+# Run one simulation
+cd homework-2/load && mvn gatling:test \
+  -Dgatling.simulationClass=com.support.api.load.ConcurrentOperationsSimulation
+
+cd homework-2/load && mvn gatling:test \
+  -Dgatling.simulationClass=com.support.api.load.CombinedFilterSimulation
+
+# Run against a remote host
+cd homework-2/load && mvn gatling:test -Dapi.base-url=http://staging.example.com
+```
+
+Gatling writes an HTML report to `load/target/gatling/<simulation-timestamp>/index.html` after
+each run. Open it to inspect response-time percentile charts, per-request statistics, and the
+pass/fail verdict for the configured assertions.
 
 ### A specific test class
 
@@ -268,6 +302,84 @@ import scenarios. Parser unit tests and integration tests use their own fixture 
 | `malformed.csv` | Unbalanced double-quote in row 1, causing OpenCSV to read the rest as a continuation; column counts don't align with the header |
 | `malformed.json` | Object literal instead of array (`{ this is not valid json }`) — not valid JSON at all |
 | `malformed.xml` | Unclosed or mismatched tags — Jackson XmlMapper throws a parse error |
+
+---
+
+## Load Tests (`load/` module)
+
+The `load/` directory is a separate Maven project (`support-api-load`) written in **Gatling 3.9
+Java DSL**. Unlike the E2E specs, load simulations:
+
+- **Do not clean up after themselves** — tickets created during a run persist until the
+  application is restarted or the H2 database is cleared.
+- **Can target any host** — override `api.base-url` to point at staging or any remote environment.
+- **Produce an HTML report** — written to `load/target/gatling/<timestamp>/index.html` after each run.
+
+### Test layout
+
+```
+load/src/test/java/com/support/api/load/
+├── ConcurrentOperationsSimulation.java
+└── CombinedFilterSimulation.java
+```
+
+### `ConcurrentOperationsSimulation`
+
+Verifies that the API handles 20+ simultaneous requests without degradation.
+
+Two injection waves run in parallel from t=0:
+
+| Wave | Users | Operations per user |
+|---|---|---|
+| A – Burst CRUD | 25 | `POST /tickets` → `GET /tickets/{id}` → `PUT /tickets/{id}` → `DELETE /tickets/{id}` |
+| B – Concurrent Reads | 10 | `GET /tickets`, `GET /tickets?status=new`, `GET /tickets?status=in_progress` |
+
+Total simultaneous requests at t=0: **35**.
+
+Each Wave A user generates a unique ticket (unique `customer_id` / email via `AtomicInteger`),
+executes the full CRUD lifecycle, and verifies the response body at each step (saved `id`,
+`customer_id` echo, `status` after update, 204 on delete).
+
+**Pass criteria (assertions)**
+
+| Assertion | Threshold |
+|---|---|
+| Global success rate | ≥ 95 % |
+| Response time p99 | < 5 000 ms |
+| Mean response time | < 1 000 ms |
+
+### `CombinedFilterSimulation`
+
+Verifies that combined `category` + `priority` filter queries work correctly under concurrent load.
+Execution is two-phased, chained with Gatling's `andThen`:
+
+**Phase 1 – Seed (30 simultaneous users)**
+
+30 virtual users each create one ticket, covering all 6 categories × 4 priorities (24 unique
+combos) plus 6 extra tickets for a denser dataset. Gatling waits for every seed user to finish
+before Phase 2 begins.
+
+**Phase 2 – Filter load (25 simultaneous users)**
+
+Each user randomly selects one of the 24 category × priority combinations and fires three
+queries per execution:
+
+| Request | Endpoint |
+|---|---|
+| Combined filter | `GET /tickets?category=X&priority=Y` |
+| Category-only | `GET /tickets?category=X` |
+| Priority-only | `GET /tickets?priority=Y` |
+
+The combined-filter response is checked to confirm all returned tickets share the same
+`category` and `priority` values (no cross-contamination from other filter values).
+
+**Pass criteria (assertions)**
+
+| Assertion | Threshold |
+|---|---|
+| Global success rate | ≥ 99 % |
+| Response time p95 | < 2 000 ms |
+| Mean response time | < 500 ms |
 
 ---
 

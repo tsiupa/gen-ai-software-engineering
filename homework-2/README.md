@@ -170,6 +170,37 @@ cd e2e && mvn test
 cd e2e && mvn test -Dapi.base-url=http://staging.example.com
 ```
 
+### Load tests (requires a running instance)
+
+The `load/` directory is a standalone Maven project (Gatling 3.9 · Java DSL) that measures
+throughput and latency under concurrent load. Two simulations are provided:
+
+| Simulation | What it does |
+|---|---|
+| `ConcurrentOperationsSimulation` | 25 simultaneous CRUD users + 10 simultaneous read-only users (35 concurrent requests at t=0) |
+| `CombinedFilterSimulation` | Seeds 30 tickets then fires 25 concurrent users querying by combined `category` + `priority` filters |
+
+```bash
+# 1. Start the application first (in a separate terminal)
+mvn -DskipTests spring-boot:run
+
+# 2. Run both simulations
+cd load && mvn gatling:test
+
+# Run a single simulation
+cd load && mvn gatling:test \
+  -Dgatling.simulationClass=com.support.api.load.ConcurrentOperationsSimulation
+
+cd load && mvn gatling:test \
+  -Dgatling.simulationClass=com.support.api.load.CombinedFilterSimulation
+
+# Run against a different host
+cd load && mvn gatling:test -Dapi.base-url=http://staging.example.com
+```
+
+Gatling writes an HTML report to `load/target/gatling/<simulation-timestamp>/index.html` after
+each run.
+
 ---
 
 ## Project Structure
@@ -185,6 +216,10 @@ homework-2/
 ├── lombok.config              # sets addLombokGeneratedAnnotation=true so JaCoCo skips Lombok code
 ├── demo/                      # scratch space for demo files / ad-hoc test payloads
 ├── e2e/                       # standalone Groovy/Spock E2E module (separate Maven project)
+├── load/                      # standalone Gatling load-test module (separate Maven project)
+│   └── src/test/java/com/support/api/load/
+│       ├── ConcurrentOperationsSimulation.java
+│       └── CombinedFilterSimulation.java
 ├── docs/
 │   └── screenshots/
 └── src/
