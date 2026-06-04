@@ -1,0 +1,6 @@
+customer_id,customer_email,customer_name,subject,description
+E2E-CSV-A,alice@e2e.com,Alice,Login failure,I cannot access my account; password reset emails are not arriving. This is critical.
+E2E-CSV-B,bob@e2e.com,Bob,Duplicate invoice,My invoice shows a duplicate payment charge. I need a refund for it. This is important.
+E2E-CSV-C,carol@e2e.com,Carol,Dark mode,Would love a dark mode feature - just a minor cosmetic suggestion for accessibility.
+E2E-CSV-D,dan@e2e.com,Dan,Checkout bug,Steps to reproduce: click checkout. App crashes immediately with a regression from last release.
+E2E-CSV-E,eve@e2e.com,Eve,API broken,Production server errors - service not working for all users. Critical security incident suspected.

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tickets>
+  <ticket>
+    <customer_id>E2E-XML-A</customer_id>
+    <customer_email>xml-a@e2e.com</customer_email>
+    <customer_name>Xml A</customer_name>
+    <subject>Password locked</subject>
+    <description>I cannot login to my account; the password reset link expired. Locked out completely. Critical access issue.</description>
+  </ticket>
+  <ticket>
+    <customer_id>E2E-XML-B</customer_id>
+    <customer_email>xml-b@e2e.com</customer_email>
+    <customer_name>Xml B</customer_name>
+    <subject>Invoice dispute</subject>
+    <description>My invoice was incorrect and included wrong charges. Please process a refund. This is important to resolve quickly.</description>
+  </ticket>
+  <ticket>
+    <customer_id>E2E-XML-C</customer_id>
+    <customer_email>xml-c@e2e.com</customer_email>
+    <customer_name>Xml C</customer_name>
+    <subject>New feature idea</subject>
+    <description>Would love a bulk export enhancement added to the dashboard. Minor cosmetic suggestion for power users.</description>
+  </ticket>
+</tickets>

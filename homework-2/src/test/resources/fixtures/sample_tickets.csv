@@ -1,0 +1,7 @@
+customer_id,customer_email,customer_name,subject,description,category,priority,tags,source,browser,device_type
+CSV-1,alice@example.com,Alice,Cannot log in,I cannot login to my account because the password reset email never arrived. critical issue.,account_access,urgent,login;password,web_form,Firefox,desktop
+CSV-2,bob@example.com,Bob,Refund double charge,My credit card was billed twice for the same invoice; please process a refund. This is important.,billing_question,high,billing;refund,email,Chrome,desktop
+CSV-3,carol@example.com,Carol,App crashes on launch,The Android app crashes immediately after launch on Android 14 - reproduced three times.,bug_report,medium,mobile;crash,api,,mobile
+CSV-4,dan@example.com,Dan,Dark mode suggestion,Would love a dark mode feature - minor cosmetic improvement suggestion for accessibility.,feature_request,low,ui;enhancement,web_form,Safari,tablet
+CSV-5,eve@example.com,Eve,Production down,Our production environment is down and customers cannot place orders. Security incident suspected.,technical_issue,urgent,prod;outage,phone,,desktop
+CSV-6,frank@example.com,Frank,General question,Just wondering how to export my data to CSV - is there a setting for that?,other,medium,export,chat,Edge,desktop
