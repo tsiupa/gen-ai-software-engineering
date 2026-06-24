@@ -26,7 +26,7 @@ export function assignSlot(slotIndex) {
   const closeMinutes = CLOSE_HOUR * 60;
   const startMinutes = openMinutes + slotIndex * SLOT_MINUTES;
 
-  if (startMinutes <= closeMinutes) {
+  if (startMinutes < closeMinutes) {
     const endMinutes = startMinutes + SLOT_MINUTES;
     return { start: toHHMM(startMinutes), end: toHHMM(endMinutes) };
   }

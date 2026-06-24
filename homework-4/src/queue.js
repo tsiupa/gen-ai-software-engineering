@@ -29,7 +29,7 @@ export function createQueue() {
      * @returns {object | null}
      */
     dequeueNext() {
-      return items.pop() ?? null;
+      return items.shift() ?? null;
     },
 
     size() {

@@ -1,10 +1,12 @@
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { timingSafeEqual } from 'node:crypto';
 import { createQueue } from './queue.js';
 import { assignSlot } from './scheduler.js';
 
 // Token the doctor client must present to pull patients from the queue.
-const DOCTOR_TOKEN = 'doctor-secret-2024';
+// Falls back to the legacy literal only when DOCTOR_TOKEN is unset (local dev/tests).
+const DOCTOR_TOKEN = process.env.DOCTOR_TOKEN ?? 'doctor-secret-2024';
 
 function sendJson(res, statusCode, payload) {
   const body = JSON.stringify(payload);
@@ -27,6 +29,18 @@ function readJson(req, res, callback) {
       return sendJson(res, 400, { error: 'Invalid JSON body' });
     }
   });
+}
+
+function isValidToken(provided) {
+  if (typeof provided !== 'string') {
+    return false;
+  }
+  const expected = Buffer.from(DOCTOR_TOKEN);
+  const candidate = Buffer.from(provided);
+  if (candidate.length !== expected.length) {
+    return false;
+  }
+  return timingSafeEqual(candidate, expected);
 }
 
 export function createServer() {
@@ -59,7 +73,7 @@ export function createServer() {
     // Doctor pulls the next patient and removes them from the queue.
     if (req.method === 'POST' && req.url === '/queue/next') {
       const token = req.headers['x-doctor-token'];
-      if (token !== DOCTOR_TOKEN) {
+      if (!isValidToken(token)) {
         return sendJson(res, 401, { error: 'Unauthorized' });
       }
 

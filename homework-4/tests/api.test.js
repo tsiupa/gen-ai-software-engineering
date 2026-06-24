@@ -59,6 +59,23 @@ test('doctor cannot pull the queue without a valid token', async () => {
   });
 });
 
+test('the 14th registration gets the last slot and the 15th is rejected with 409', async () => {
+  await withServer(async (base) => {
+    let lastJson;
+    for (let i = 1; i <= 14; i += 1) {
+      const res = await register(base, { name: `Patient ${i}`, reason: 'Checkup' });
+      assert.equal(res.status, 201);
+      lastJson = await res.json();
+    }
+    assert.deepEqual(lastJson.timeSlot, { start: '15:30', end: '16:00' });
+
+    const res15 = await register(base, { name: 'Patient 15', reason: 'Checkup' });
+    assert.equal(res15.status, 409);
+    const json15 = await res15.json();
+    assert.equal(json15.error, 'No appointment slots available today');
+  });
+});
+
 test('doctor pulls the only waiting patient', async () => {
   await withServer(async (base) => {
     await register(base, { name: 'Alice', reason: 'Cough' });
