@@ -1,0 +1,11 @@
+[project]
+name = "custom-mcp-server"
+version = "0.1.0"
+description = "Custom FastMCP server exposing lorem-ipsum.md as a resource and a read tool"
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.0.0",
+]
+
+[tool.uv]
+package = false

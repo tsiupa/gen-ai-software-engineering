@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--mount", "type=bind,src=/Users/oleksandr.tsiupa/Downloads,dst=/projects/Downloads",
+        "mcp/filesystem",
+        "/projects"
+      ]
+    },
+    "notion": {
+      "type": "http",
+      "url": "https://mcp.notion.com/mcp"
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
+      }
+    },
+    "custom-lorem": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/oleksandr.tsiupa/Projects/STUDY/gen-ai-software-engineering/homework-5/custom-mcp-server",
+        "python",
+        "server.py"
+      ]
+    }
+  }
+}
